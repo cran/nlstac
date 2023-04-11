@@ -1,6 +1,4 @@
 #' @title Prints the summary a summary.nlstac object.
-#'
-#'
 #' @description Internal function for printing the summary of a nlstac.
 #'
 #' @param x An object of class \code{"nlstac"} obtained by the \code{fit_tac} function.
@@ -26,26 +24,9 @@ print.summary.nlstac <- function(x, digits = max(3L, getOption("digits") - 3L), 
                ...)
   cat("\nResidual standard error:", format(signif(x$sigma,
                                                   digits)), "on", rdf, "degrees of freedom")
-  # cat("\n")
-  # correl <- x$correlation
-  # if (!is.null(correl)) {
-  #   p <- NCOL(correl)
-  #   if (p > 1) {
-  #     cat("\nCorrelation of Parameter Estimates:\n")
-  #     if (is.logical(symbolic.cor) && symbolic.cor) {
-  #       print(symnum(correl, abbr.colnames = NULL))
-  #     }
-  #     else {
-  #       correl <- format(round(correl, 2), nsmall = 2L,
-  #                        digits = digits)
-  #       correl[!lower.tri(correl)] <- ""
-  #       print(correl[-1, -p, drop = FALSE], quote = FALSE)
-  #     }
-  #   }
-  # }
   cat("\n")
-  invisible(x)
   cat("\nNumber of iterations to convergence: ", format(signif(x$convInfo$niter, digits)))
   cat("\nAchieved convergence tolerance: ", format(signif(x$convInfo$tolerance, digits)))
   cat("\n")
+  invisible(x)
 }

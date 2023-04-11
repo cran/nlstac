@@ -6,7 +6,7 @@
 \usage{
 nls_tac(
   formula,
-  data,
+  data = parent.frame(),
   functions = NULL,
   nlparam,
   lp_bounds = NULL,
@@ -14,7 +14,8 @@ nls_tac(
   tol = 1e-04,
   parallel = FALSE,
   maxiter = 50,
-  quiet = TRUE,
+  quiet = FALSE,
+  silent = TRUE,
   compute_errors = TRUE
 )
 }
@@ -37,7 +38,9 @@ nls_tac(
 
 \item{maxiter}{Integer. The maximum number of iterations. Defaults to 50.}
 
-\item{quiet}{Logical. Parameter to be passed to get_best_parameters function. If TRUE (default) suppresses any warnings regarding the collinearity of the columns of the matrix in the determination of the best linear parameters.}
+\item{quiet}{Logical. If TRUE, all progress messages are supressed (defaults to FALSE).}
+
+\item{silent}{Logical. Parameter to be passed to get_best_parameters function. If TRUE (default) suppresses any warnings regarding the collinearity of the columns of the matrix in the determination of the best linear parameters.}
 
 \item{compute_errors}{Logical. If TRUE (default value) the function computes the standard error of the estimates.}
 }

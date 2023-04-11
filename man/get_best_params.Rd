@@ -13,7 +13,7 @@ get_best_params(
   lp_bounds = NULL,
   lhs_var,
   N = 10,
-  quiet = TRUE,
+  silent = TRUE,
   parallel = FALSE
 )
 }
@@ -34,7 +34,7 @@ get_best_params(
 
 \item{N}{Size of the partition of the nonlinear parameters. Defaults to 10.}
 
-\item{quiet}{Logical. If TRUE (default) supresses any warnings regarding the collinearity of the columns of the matrix in the determination of the best linear parameters.}
+\item{silent}{Logical. If TRUE (default) supresses any warnings regarding the collinearity of the columns of the matrix in the determination of the best linear parameters.}
 
 \item{parallel}{Logical. If TRUE then multicore parallelization of for loops is done with the parallel package. Defaults to FALSE.}
 }

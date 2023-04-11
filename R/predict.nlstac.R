@@ -1,6 +1,4 @@
 #' @title Predict a nls tac fit.
-#'
-#'
 #' @description Returns the prediction values of a nls tac fit model for a given set of predictors.
 #'
 #' @param object An object of class \code{"tac"} obtained by the \code{nls_tac} function.

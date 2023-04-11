@@ -1,6 +1,4 @@
 #' @title Summary a nls tac fit.
-#'
-#'
 #' @description Gives the fitted coefficients and the convergence information of the fit.
 #'
 #' @param object An object of class \code{"nlstac"} obtained by the \code{fit_tac} function.

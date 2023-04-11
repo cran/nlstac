@@ -9,15 +9,12 @@
 #' @param lp_bounds An optional list with the bounding restrictions over the linear parameters.
 #' @param lhs_var The name of the left-hand-side of the formula
 #' @param N Size of the partition of the nonlinear parameters. Defaults to 10.
-#' @param quiet Logical. If TRUE (default) supresses any warnings regarding the collinearity of the columns of the matrix in the determination of the best linear parameters.
+#' @param silent Logical. If TRUE (default) supresses any warnings regarding the collinearity of the columns of the matrix in the determination of the best linear parameters.
 #' @param parallel Logical. If TRUE then multicore parallelization of for loops is done with the parallel package. Defaults to FALSE.
 #' @return  A list containing the strings for the  nonlinear functions of the formula.
-#' @importFrom parallel detectCores makeCluster
-#' @importFrom doParallel registerDoParallel stopImplicitCluster
 #' @importFrom foreach foreach %dopar%
 #' @importFrom stats as.formula formula lm coefficients complete.cases
 #'
-#' @export
 get_best_params <-
   function(dat,
            form,
@@ -27,23 +24,22 @@ get_best_params <-
            lp_bounds = NULL,
            lhs_var,
            N = 10,
-           quiet = TRUE,
+           silent = TRUE,
            parallel = FALSE) {
+    
     nonlparam_full <- lapply(nlparam, function(x){
       seq(from = x[1], to = x[2], length.out = N)
     })
-
+    
     NLP <- expand.grid(nonlparam_full)
     form <- as.formula(form)
-
+    
     if (parallel) {
-      no_cores <- detectCores() - 1
-      cl <- makeCluster(no_cores)
-      registerDoParallel(no_cores)
+      
       LP <-
-        foreach(k = seq_len(nrow(NLP)), .combine = rbind) %dopar% {
+        foreach(kidx = seq_len(nrow(NLP)), .combine = rbind) %dopar% {
           for (i in names(nonlparam_full)) {
-            assign(i, NLP[k, i])
+            assign(i, NLP[kidx, i])
           }
           nlMatrix <-
             matrix(0, nrow = nrow(dat), ncol = length(functions))
@@ -52,7 +48,7 @@ get_best_params <-
             nlMatrix[, j] <- eval(formula(paste("y~", functions[j]))[[3]], dat)
           }
           if (qr(nlMatrix)$rank < ncol(nlMatrix)) {
-            if (!quiet) {
+            if (!silent) {
               warning("Rank deficient matrix! Try to change the parameters!")
             }
             rep(NA, length(lp))
@@ -61,11 +57,11 @@ get_best_params <-
               cbind(data.frame(lhs = unname(dat[, lhs_var])), data.frame(nlMatrix))
             fitlm <- lm(lhs ~  . - 1 , data = datdf)
             coefficients(fitlm)
-
-
+            
+            
           }
         }
-      stopImplicitCluster()
+      
     } else{
       LP <-
         matrix(
@@ -74,57 +70,58 @@ get_best_params <-
           ncol = length(lp),
           dimnames = list(NULL, lp)
         )
+      
+      for (kidx in seq_len(nrow(NLP))) {
 
-      for (k in seq_len(nrow(NLP))) {
-        #♦print(paste0(k,'/',nrow(NLP)))
         for (i in names(nonlparam_full)) {
-          #    assign(i, nonlparam_full[[i]][k])
-          assign(i, NLP[k, i])
+          assign(i, NLP[kidx, i])
         }
-        nlMatrix <-
-          matrix(0, nrow = nrow(dat), ncol = length(functions))
+        nlMatrix <- matrix(0, nrow = nrow(dat), ncol = length(functions))
         colnames(nlMatrix) <- lp
+        
+        
         for (j in seq_along(functions)) {
           nlMatrix[, j] <- eval(formula(paste("y~", functions[j]))[[3]], dat)
         }
+        
         if (qr(nlMatrix)$rank < ncol(nlMatrix)) {
-          if (!quiet) {
+          if (!silent) {
             warning("Rank deficient matrix! Try to change the parameters!")
           }
-          LP[k, ] <- rep(NA, ncol(LP))
+          LP[kidx, ] <- rep(NA, ncol(LP))
         } else{
           datdf <-
             cbind(data.frame(lhs = unname(dat[, lhs_var])), data.frame(nlMatrix))
-
+          
           fitlm <- lm(lhs ~  . - 1 , data = datdf)
-          LP[k, ] <- coefficients(fitlm)
-
+          LP[kidx, ] <- coefficients(fitlm)
+          
         }
       }
     }
-
+    
     non_na_idxs <- complete.cases(LP)
     LP <- LP[non_na_idxs,]
     if(!is.matrix(LP)){
       LP <- matrix(LP, ncol = 1, dimnames = list(NULL, lp))
     }
-
+    
     NLP <- NLP[non_na_idxs,]
     # Checking that NLP continues being a matrix with the same colnames
     if (!is.matrix(NLP) & is.numeric(NLP)){
       NLP <- matrix(NLP, ncol = 1)
       colnames(NLP) <- names(nlparam)
     }
-
+    
     if (!is.null(lp_bounds)){
       lpidx <- matrix(NA, nrow = nrow(LP), ncol = length(lp_bounds))
       for(i in seq_along(lp_bounds)){
         lp_bounded_param <- names(lp_bounds[i])
         lpidx[,i] <- LP[,lp_bounded_param] >= lp_bounds[[lp_bounded_param]][1] &
-          LP[,lp_bounded_param] <= lp_bounds[[lp_bounded_param]][2]
+          LP[, lp_bounded_param] <= lp_bounds[[lp_bounded_param]][2]
       }
       lpidx <- apply(lpidx, MARGIN = 1, FUN = function(x) all(x))
-
+      
       if(!any(lpidx)){
         stop("No feasible solution found. Try modifying the linear parameters bounds.")
       } else {
@@ -132,40 +129,45 @@ get_best_params <-
         NLP <- NLP[lpidx,]
       }
     }
-
-
+    
+    
     PAR <- cbind(NLP, LP)
     PAR <- as.data.frame(PAR)
-
-          SSR <- apply( PAR, MARGIN = 1, FUN = function(x) {
-        if (any(is.na(x))) {
-          ssr <- Inf
-        } else{
-          for (i in seq_len(ncol(PAR))) {
-            assign(colnames(PAR)[i], x[i])
-          }
-          yhat <- eval(form[[3]], dat)
-          ssr <- sum((yhat - dat[lhs_var]) ^ 2, na.rm = TRUE)
+    
+    SSR <- apply( PAR, MARGIN = 1, FUN = function(x) {
+      if (any(is.na(x))) {
+        ssr <- Inf
+      } else{
+        
+        for (i in seq_len(ncol(PAR))) {
+          assign(colnames(PAR)[i], x[i])
         }
-        return(ssr)
+        yhat <- eval(form[[3]], dat)
+        ssr <- sum((yhat - dat[lhs_var]) ^ 2, na.rm = TRUE)
       }
-      )
-      PAR$SSR <- SSR
-
-      minSSR <- which.min(PAR$SSR)
-
-
-
+      return(ssr)
+    }
+    )
+    
+    PAR$SSR <- SSR
+    
+    minSSR <- which.min(PAR$SSR)
+    
+    
+    
     coef <- PAR[minSSR, ]
     for (i in seq_len(length(nlparam) + length(lp))) {
       assign(colnames(coef)[i], coef[[i]])
     }
-    residuals <- eval(form[[3]], dat) - dat[lhs_var]
+    fitted <- eval(form[[3]], dat)
+    residuals <-  fitted - dat[lhs_var]
+    
     return(list(
       coef = coef,
       PARAM = PAR,
       nonlparam_full = nonlparam_full,
-      residuals = residuals
+      residuals = residuals,
+      fitted = fitted
     ))
-
+    
   }

@@ -24,12 +24,11 @@
 #'
 #' University of Valencia (Spain)
 #' @importFrom stringr str_remove str_split str_remove_all str_replace
-#' @export
 #'
 
 get_functions <- function(form, lp){
   # If form is given as a formula class we convert it to a character string
-  if(class(form) == "formula"){
+  if(inherits(form, "formula")){
     form <- paste(deparse(form), collapse = " ")
     form <- gsub("\\s+", " ", form, perl = FALSE)
   }
@@ -48,7 +47,7 @@ get_functions <- function(form, lp){
 
   # We make the split
   parts <- str_split(rhs_nb, pattern = splitpatt)[[1]]
-  # If one the functions is of the form "a/f(x)", being "a" a linear paramter, then we need to convert it to 1/f(x)
+  # If one the functions is of the form "a/f(x)", being "a" a linear parameter, then we need to convert it to 1/f(x)
   parts <- str_replace(parts,"^/","1/")
 
   #We need to deal with the blank elements (the first and/or the independent terms (offsets)))

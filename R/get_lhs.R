@@ -4,9 +4,10 @@
 #' @return  A string with the name of the left hand side variable in the formula
 #'
 #' @importFrom stats as.formula
-#' @export
+#' @importFrom methods is
+#' 
 get_lhs <- function(form) {
-  if(class(form) == "formula"){
+  if(is(form, "formula")){
     form <- paste(deparse(form), collapse = " ")
     form <- gsub("\\s+", " ", form, perl = FALSE)
   }
@@ -15,8 +16,6 @@ get_lhs <- function(form) {
     lhs_var <- trimws(lhs_var)
     form <- as.formula(form)
   }
-  #else if(class(form) == "formula"){
-  #  lhs_var <- as.character(form)[2]
-  #}
+
   return(lhs_var)
 }

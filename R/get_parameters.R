@@ -6,13 +6,12 @@
 #'
 #' @importFrom stats as.formula terms
 #'
-#' @export
 #'
 get_parameters <- function(form, var_names) {
   form <- as.formula(form)
 
   indep_vars <- var_names[var_names != get_lhs(form)]
-  vars <- all.vars(as.formula(form))
+  vars <- all.vars(form)
   if (!all(var_names %in% vars)) stop("Variables names in data are not in formula")
   parameters <- vars[which(!vars %in% var_names)]
   labs <- labels(terms(form))

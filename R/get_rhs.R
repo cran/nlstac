@@ -3,9 +3,10 @@
 #' @param form Either a string in the form \code{'y ~ ...'} or an object of \code{formula} class
 #' @return  A string with the name of the left hand side variable in the formula
 #' @importFrom stats as.formula
-#' @export
+#' @importFrom methods is
+#' 
 get_rhs <- function(form) {
-  if(class(form) == "formula"){
+  if(is(form, "formula")){
     form <- paste(deparse(form), collapse = " ")
     form <- gsub("\\s+", " ", form, perl = FALSE)
   }
@@ -14,8 +15,6 @@ get_rhs <- function(form) {
     rhs_var <- trimws(rhs_var)
     form <- as.formula(form)
   }
-  #else if(class(form) == "formula"){
-  #  lhs_var <- as.character(form)[2]
-  #}
+
   return(rhs_var)
 }

@@ -9,7 +9,8 @@
 #' @param tol Stopping condition. The algorithm stops whenever the maximum difference between two consecutive iterations is less than \code{tol}. Default value is 1e-4
 #' @param parallel Logical. If TRUE then multicore parallelization of for loops is done with the parallel package. Defaults to FALSE.
 #' @param maxiter Integer. The maximum number of iterations. Defaults to 50.
-#' @param quiet Logical. Parameter to be passed to get_best_parameters function. If TRUE (default) suppresses any warnings regarding the collinearity of the columns of the matrix in the determination of the best linear parameters.
+#' @param quiet Logical. If TRUE, all progress messages are supressed (defaults to FALSE). 
+#' @param silent Logical. Parameter to be passed to get_best_parameters function. If TRUE (default) suppresses any warnings regarding the collinearity of the columns of the matrix in the determination of the best linear parameters.
 #' @param compute_errors Logical. If TRUE (default value) the function computes the standard error of the estimates.
 #' @return  An object of class \code{nlstac}.  A list of
 #'
@@ -110,7 +111,7 @@
 #'
 nls_tac <-
   function(formula,
-           data,
+           data = parent.frame(),
            functions = NULL,
            nlparam,
            lp_bounds = NULL,
@@ -118,124 +119,127 @@ nls_tac <-
            tol = 1e-4,
            parallel = FALSE,
            maxiter = 50,
-           quiet = TRUE,
+           quiet = FALSE,
+           silent = TRUE,
            compute_errors = TRUE
   ) {
-  var_names_orig <-
-    colnames(data)
-  form <- as.formula(formula)
-  # Removing the columns of the original data frame not used in the regression.
-  used_var <- which(var_names_orig %in% all.vars(form))
-  data <- data[,used_var]
-  var_names <- colnames(data)
-
-
-  nlp_names <- names(nlparam)
-  parameters <- get_parameters(form, var_names)
-  if(is.null(functions)){
-    functions <- get_functions(form, lp = parameters$linear_parameters)
-  }
-  lhs_var <- get_lhs(form)
-
-  # First step
-  SOL <- get_best_params(data,
-                         form,
-                         functions = functions, nlparam,
-                         lp = parameters$linear_parameters,
-                         lp_bounds = lp_bounds,
-                         lhs_var = lhs_var,
-                         N = N,
-                         parallel = parallel,
-                         quiet = quiet)
-  incr <- tol + 1
-  # Rest of steps...
-  niter <- 1
-  while(incr > tol & niter <= maxiter){
-    best_coef_old <- SOL$coef
-    bestnlp <- best_coef_old[,names(best_coef_old) %in% nlp_names]
-    names(bestnlp) <- nlp_names
-    if(class(bestnlp) == "data.frame"){
-      idx_bestnlp <- sapply(names(bestnlp), function(x) which(as.numeric(SOL$nonlparam_full[[x]]) == bestnlp[,x]))
-    }else{
-      idx_bestnlp <- sapply(names(bestnlp), function(x) which(as.numeric(SOL$nonlparam_full[[x]]) == bestnlp[[x]]))
+    dataset <- substitute(data)
+    var_names_orig <- colnames(data)
+    form <- as.formula(formula)
+    # Removing the columns of the original data frame not used in the regression.
+    used_var <- which(var_names_orig %in% all.vars(form))
+    data <- data[,used_var]
+    var_names <- colnames(data)
+    
+    
+    nlp_names <- names(nlparam)
+    parameters <- get_parameters(form, var_names)
+    if(is.null(functions)){
+      functions <- get_functions(form, lp = parameters$linear_parameters)
     }
-    lower_bound <- pmax(idx_bestnlp-1,1)
-    upper_bound <- pmin(idx_bestnlp+1,N)
-    nlparam <- lapply(names(bestnlp), function(x) c(SOL$nonlparam_full[[x]][lower_bound[x]], SOL$nonlparam_full[[x]][upper_bound[x]]))
-    names(nlparam) <- names(bestnlp)
+    lhs_var <- get_lhs(form)
+    
+    # First step ----
     SOL <- get_best_params(data,
                            form,
-                           functions,
+                           functions = functions, 
                            nlparam,
                            lp = parameters$linear_parameters,
                            lp_bounds = lp_bounds,
                            lhs_var = lhs_var,
                            N = N,
                            parallel = parallel,
-                           quiet = quiet)
-
-    best_coef <- SOL$coef
-    incr <- max(abs(best_coef[,1:length(nlparam)] - best_coef_old[,1:length(nlparam)]) / (abs(best_coef_old[,1:length(nlparam)] + 2 * .Machine$double.eps)))
-    print(paste0('iteration = ',niter, '/ incr = ',incr))
-    niter <- niter + 1
-  }
-  SSR <- best_coef[,length(nlparam) + length(parameters$linear_parameters) + 1]
-  par <- c(parameters$nonlinear_parameters, parameters$linear_parameters)
-  names(par) <- par
-
-  ## Computing gradients for the error estimates
-  ##
-  ##
-
-  if (compute_errors){
-
-  rhs <- get_rhs(formula)
-  gradfcn  <- sapply(par, function(p) Deriv(rhs,p))
-
-  for (i in names(par)) {
-    #    assign(i, nonlparam_full[[i]][k])
-    assign(i, best_coef[[i]])
-  }
-
-  gradMat <- matrix(0, ncol = length(gradfcn), nrow = nrow(data))
-
-  for (j in seq_along(gradfcn)){
-    gradMat[,j] <- eval(formula(paste("y~",gradfcn[j]))[[3]], data)
-  }
-  gradMat[is.nan(gradMat) | is.na(gradMat)] <- 0
-  Rmat <- qr.R(qr(gradMat))
-  sqrt(diag(chol2inv(Rmat)))
-
-  df <- nrow(data)-length(par)
-
-  s <- sqrt(SSR / df)
-
-  tstar <- qt(0.975,df)
-
-  stdError <- s * sqrt(diag(chol2inv(Rmat)))
-  names(stdError) <- names(par)
-  } else{
-    Rmat = NULL
-    stdError = NULL
-    s = NULL
-  }
-  ## Gathering the results
-
-  BC <- best_coef[ ,(1:(length(nlparam)+length(parameters$linear_parameters)))]
-  nBC <- names(BC)
-  BC <- as.numeric(BC)
-  names(BC) <- nBC
-  tacOutput <- list(
-    coefficients = BC,
-    stdError = stdError,
-    convInfo = list(niter = niter, tolerance = incr),
-    SSR = SSR,
-    resid = SOL$residuals,
-    data = data,
-    formula = form,
-    df = df,
-    sigma = s,
-    Rmat = Rmat
+                           silent = silent)
+    incr <- tol + 1
+    # Rest of steps... ----
+    niter <- 1
+    while(incr > tol & niter <= maxiter){
+      best_coef_old <- SOL$coef
+      bestnlp <- best_coef_old[,names(best_coef_old) %in% nlp_names]
+      names(bestnlp) <- nlp_names
+      if(is.data.frame(bestnlp)){
+        idx_bestnlp <- sapply(names(bestnlp), function(x) which(as.numeric(SOL$nonlparam_full[[x]]) == bestnlp[,x]))
+      }else{
+        idx_bestnlp <- sapply(names(bestnlp), function(x) which(as.numeric(SOL$nonlparam_full[[x]]) == bestnlp[[x]]))
+      }
+      lower_bound <- pmax(idx_bestnlp-1,1)
+      upper_bound <- pmin(idx_bestnlp+1,N)
+      nlparam <- lapply(names(bestnlp), function(x) c(SOL$nonlparam_full[[x]][lower_bound[x]], SOL$nonlparam_full[[x]][upper_bound[x]]))
+      names(nlparam) <- names(bestnlp)
+      SOL <- get_best_params(data,
+                             form,
+                             functions,
+                             nlparam,
+                             lp = parameters$linear_parameters,
+                             lp_bounds = lp_bounds,
+                             lhs_var = lhs_var,
+                             N = N,
+                             parallel = parallel,
+                             silent = silent)
+      
+      best_coef <- SOL$coef
+      incr <- max(abs(best_coef[,1:length(nlparam)] - best_coef_old[,1:length(nlparam)]) / (abs(best_coef_old[,1:length(nlparam)] + 2 * .Machine$double.eps)))
+      if(!quiet){
+        message(paste0('iteration = ',niter, '/ incr = ',incr))
+      }
+      niter <- niter + 1
+    }
+    SSR <- best_coef[,length(nlparam) + length(parameters$linear_parameters) + 1]
+    par <- c(parameters$nonlinear_parameters, parameters$linear_parameters)
+    names(par) <- par
+    
+    ## Computing gradients for the error estimates
+    ##
+    ##
+    
+    if (compute_errors){
+      
+      rhs <- get_rhs(formula)
+      gradfcn  <- sapply(par, function(p) Deriv(rhs,p))
+      
+      for (i in names(par)) {
+        assign(i, best_coef[[i]])
+      }
+      
+      gradMat <- matrix(0, ncol = length(gradfcn), nrow = nrow(data))
+      
+      for (j in seq_along(gradfcn)){
+        gradMat[,j] <- eval(formula(paste("y~",gradfcn[j]))[[3]], data)
+      }
+      gradMat[is.nan(gradMat) | is.na(gradMat)] <- 0
+      Rmat <- qr.R(qr(gradMat))
+      
+      
+      df <- nrow(data)-length(par)
+      
+      s <- sqrt(SSR / df)
+      
+      stdError <- s * sqrt(diag(chol2inv(Rmat)))
+      names(stdError) <- names(par)
+    } else{
+      Rmat = NULL
+      stdError = NULL
+      s = NULL
+    }
+    ## Gathering the results
+    
+    BC <- best_coef[ ,(1:(length(nlparam)+length(parameters$linear_parameters)))]
+    nBC <- names(BC)
+    BC <- as.numeric(BC)
+    names(BC) <- nBC
+    tacOutput <- list(
+      coefficients = BC,
+      stdError = stdError,
+      convInfo = list(niter = niter, tolerance = incr),
+      SSR = SSR,
+      fitted = SOL$fitted,
+      resid = SOL$residuals,
+      dataset = dataset,
+      data = data,
+      formula = form,
+      df = df,
+      sigma = s,
+      Rmat = Rmat
     )
-  return(structure(tacOutput, class = "nlstac"))
-}
+    return(structure(tacOutput, class = "nlstac"))
+  }
